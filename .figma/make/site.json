@@ -1,0 +1,10 @@
+{
+  "description": "Efficiently generates super admin accounts for attendance platforms by processing uploaded files, ensuring compliance with brand guidelines for seamless integration.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

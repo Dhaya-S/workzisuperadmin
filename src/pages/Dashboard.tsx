@@ -1,18 +1,55 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TrendingUp, TrendingDown, ArrowRight, AlertTriangle, Users, Building2, CreditCard, Activity, Bot, HardDrive, Zap, LifeBuoy, Eye } from 'lucide-react'
 import { StatCard, LineChart, MiniBarChart, StatusBadge, SectionHeader, ProgressBar } from '../components/ui'
 import { METRIC_CARDS, ORGS, TICKETS, INCIDENTS, SECURITY_EVENTS, GROWTH_DATA, REVENUE_DATA, SERVICES } from '../lib/data'
-import type { Page } from '../lib/types'
+import type { Page, Org, Admin } from '../lib/types'
+import { subscribeOrganizations, subscribeUsers } from '../lib/superadmin-service'
+import { useSuperAdminAuth } from '../context/SuperAdminAuthContext'
 
 interface DashboardProps { setPage: (p: Page) => void; setSelectedOrg: (id: string) => void }
 
 export default function Dashboard({ setPage, setSelectedOrg }: DashboardProps) {
+  const { adminProfile, user } = useSuperAdminAuth()
   const [growthPeriod, setGrowthPeriod] = useState<'weekly' | 'monthly'>('monthly')
+  const [liveOrgs, setLiveOrgs] = useState<Org[]>([])
+  const [liveUsers, setLiveUsers] = useState<Admin[]>([])
   const m = METRIC_CARDS
 
+  useEffect(() => {
+    const unsubOrgs = subscribeOrganizations(orgs => setLiveOrgs(orgs))
+    const unsubUsers = subscribeUsers(users => setLiveUsers(users))
+    return () => {
+      unsubOrgs()
+      unsubUsers()
+    }
+  }, [])
+
+  const displayOrgs = liveOrgs
+  const totalOrgsCount = liveOrgs.length
+  const activeOrgsCount = liveOrgs.filter(o => o.status === 'active').length
+  const trialOrgsCount = liveOrgs.filter(o => o.status === 'trial').length
+  const suspendedOrgsCount = liveOrgs.filter(o => o.status === 'suspended').length
+
+  const totalUsersCount = liveUsers.length
+  const activeUsersCount = liveUsers.filter(u => u.status === 'active').length
+
+  const calculatedMrr = liveOrgs.reduce((acc, o) => acc + (o.mrr || 0), 0)
+  const calculatedArr = calculatedMrr * 12
+
+  const formatCurrency = (amount: number) => {
+    if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(1)}Cr`
+    if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`
+    return `₹${amount.toLocaleString('en-IN')}`
+  }
+
+  const mrrDisplay = formatCurrency(calculatedMrr)
+  const arrDisplay = formatCurrency(calculatedArr)
+
+  const adminName = adminProfile?.name || user?.displayName || user?.email?.split('@')[0] || 'Super Admin'
+
   const PENDING_ACTIONS = [
-    { label: '3 organizations pending approval', action: 'Review', page: 'organizations' as Page, color: 'var(--warning)' },
-    { label: '5 administrator invitations pending', action: 'View', page: 'administrators' as Page, color: 'var(--info)' },
+    { label: `${liveOrgs.filter(o => o.status === 'pending').length} organizations pending approval`, action: 'Review', page: 'organizations' as Page, color: 'var(--warning)' },
+    { label: `${liveUsers.filter(u => u.status === 'pending').length} administrator invitations pending`, action: 'View', page: 'administrators' as Page, color: 'var(--info)' },
     { label: '2 open incidents', action: 'Manage', page: 'monitoring' as Page, color: 'var(--error)' },
     { label: '1 failed payment needs attention', action: 'Resolve', page: 'billing' as Page, color: 'var(--error)' },
   ]
@@ -22,18 +59,18 @@ export default function Dashboard({ setPage, setSelectedOrg }: DashboardProps) {
 
       {/* Greeting */}
       <div>
-        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Good morning, Dhruv</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Here's what's happening across Attendance HRMS today.</div>
+        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Good day, {adminName}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Here's the real-time operational overview across the Workzi HRMS platform.</div>
       </div>
 
       {/* Primary Metrics — Row 1: Organizations */}
       <div>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Organizations</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-          <StatCard label="Total Organizations" value={m.totalOrgs.toLocaleString('en-IN')} trend="+12.4%" sub="vs last month" onClick={() => setPage('organizations')} accent="var(--primary)" />
-          <StatCard label="Active Organizations" value={m.activeOrgs.toLocaleString('en-IN')} trend="+8.4%" sub="vs last month" onClick={() => setPage('organizations')} accent="var(--success)" />
-          <StatCard label="Trial Organizations" value={m.trialOrgs} trend="+3" sub="this week" onClick={() => setPage('organizations')} accent="var(--info)" />
-          <StatCard label="Suspended" value={m.suspendedOrgs} sub="requires attention" onClick={() => setPage('organizations')} accent="var(--error)" />
+          <StatCard label="Total Organizations" value={totalOrgsCount.toLocaleString('en-IN')} trend="+12.4%" sub="vs last month" onClick={() => setPage('organizations')} accent="var(--primary)" />
+          <StatCard label="Active Organizations" value={activeOrgsCount.toLocaleString('en-IN')} trend="+8.4%" sub="vs last month" onClick={() => setPage('organizations')} accent="var(--success)" />
+          <StatCard label="Trial Organizations" value={trialOrgsCount} trend="+3" sub="this week" onClick={() => setPage('organizations')} accent="var(--info)" />
+          <StatCard label="Suspended" value={suspendedOrgsCount} sub="requires attention" onClick={() => setPage('organizations')} accent="var(--error)" />
         </div>
       </div>
 
@@ -42,16 +79,16 @@ export default function Dashboard({ setPage, setSelectedOrg }: DashboardProps) {
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Users</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            <StatCard label="Total Users" value={m.totalUsers.toLocaleString('en-IN')} onClick={() => setPage('identity')} />
-            <StatCard label="Active Users" value={m.activeUsers.toLocaleString('en-IN')} trend="+2.1%" />
+            <StatCard label="Total Users" value={totalUsersCount.toLocaleString('en-IN')} onClick={() => setPage('identity')} />
+            <StatCard label="Active Users" value={activeUsersCount.toLocaleString('en-IN')} trend="+2.1%" />
             <StatCard label="New This Week" value={m.newUsers} trend="+842" sub="users" />
           </div>
         </div>
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Revenue</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            <StatCard label="MRR" value={`₹${(m.mrr / 100000).toFixed(1)}L`} trend="+6.2%" onClick={() => setPage('billing')} />
-            <StatCard label="ARR" value={`₹${(m.arr / 10000000).toFixed(1)}Cr`} trend="+6.2%" onClick={() => setPage('billing')} />
+            <StatCard label="MRR" value={mrrDisplay} trend="+6.2%" onClick={() => setPage('billing')} />
+            <StatCard label="ARR" value={arrDisplay} trend="+6.2%" onClick={() => setPage('billing')} />
             <StatCard label="Pending Payments" value={`₹${(m.pendingPayments / 1000).toFixed(0)}K`} sub="2 invoices" onClick={() => setPage('billing')} accent="var(--warning)" />
           </div>
         </div>
@@ -118,7 +155,7 @@ export default function Dashboard({ setPage, setSelectedOrg }: DashboardProps) {
             action={
               <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-                  {[{ k: 'MRR', v: '₹84.2L', c: 'var(--primary)' }, { k: 'ARR', v: '₹10.1Cr', c: 'var(--text-muted)' }].map(r => (
+                  {[{ k: 'MRR', v: mrrDisplay, c: 'var(--primary)' }, { k: 'ARR', v: arrDisplay, c: 'var(--text-muted)' }].map(r => (
                     <span key={r.k} style={{ color: r.c, fontWeight: 600 }}>{r.k}: <span style={{ color: 'var(--text-primary)' }}>{r.v}</span></span>
                   ))}
                 </div>
@@ -183,18 +220,22 @@ export default function Dashboard({ setPage, setSelectedOrg }: DashboardProps) {
         <div className="card">
           <SectionHeader title="Recent Organizations" action={<button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => setPage('organizations')}>View all</button>} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {ORGS.slice(0, 5).map(org => (
-              <div key={org.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--divider)' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--primary-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--primary)', flexShrink: 0 }}>
-                  {org.name[0]}
+            {displayOrgs.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>No organizations found</div>
+            ) : (
+              displayOrgs.slice(0, 5).map(org => (
+                <div key={org.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--divider)', cursor: 'pointer' }} onClick={() => { setSelectedOrg(org.id); setPage('org-detail') }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--primary-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--primary)', flexShrink: 0 }}>
+                    {org.name[0]}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{org.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{org.plan} · {org.users} users</div>
+                  </div>
+                  <StatusBadge status={org.status} />
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{org.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{org.plan} · {org.users} users</div>
-                </div>
-                <StatusBadge status={org.status} />
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 

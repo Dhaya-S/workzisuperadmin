@@ -1,8 +1,16 @@
 import { useState } from 'react'
 import { User, Shield, Bell, Monitor, Key, LogOut, Upload } from 'lucide-react'
 import { PageHeader, Tabs, Avatar, Toast, ConfirmDialog } from '../components/ui'
+import { useSuperAdminAuth } from '../context/SuperAdminAuthContext'
 
 export default function Profile() {
+  const { adminProfile, user } = useSuperAdminAuth()
+  const displayName = adminProfile?.name || user?.displayName || user?.email?.split('@')[0] || 'Super Admin'
+  const displayEmail = adminProfile?.email || user?.email || 'admin@workzi.com'
+  const nameParts = displayName.split(' ')
+  const firstName = nameParts[0] || 'Super'
+  const lastName = nameParts.slice(1).join(' ') || 'Admin'
+
   const [tab, setTab] = useState('Personal Info')
   const [toast, setToast] = useState<string | null>(null)
   const [confirmLogout, setConfirmLogout] = useState(false)
@@ -30,15 +38,15 @@ export default function Profile() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20 }}>
           <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 32, gap: 14 }}>
             <div style={{ position: 'relative' }}>
-              <Avatar name="Dhruv Sharma" size={80} />
+              <Avatar name={displayName} size={80} />
               <button onClick={() => setToast('Profile photo picker opened')} style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: '50%', background: 'var(--primary)', border: '2px solid var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <Upload size={12} color="#fff" />
               </button>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 700 }}>Dhruv Sharma</div>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>{displayName}</div>
               <div style={{ fontSize: 13, color: 'var(--primary)', fontWeight: 500 }}>Super Admin</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>dhruv@attendancehrms.in</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{displayEmail}</div>
             </div>
             <div style={{ width: '100%', padding: '10px 0', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
               Member since Jan 2024
@@ -47,9 +55,9 @@ export default function Profile() {
           <div className="card">
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Personal Information</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
-              <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>First name</label><input className="input" defaultValue="Dhruv" /></div>
-              <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Last name</label><input className="input" defaultValue="Sharma" /></div>
-              <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Email</label><input className="input" type="email" defaultValue="dhruv@attendancehrms.in" /></div>
+              <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>First name</label><input className="input" defaultValue={firstName} /></div>
+              <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Last name</label><input className="input" defaultValue={lastName} /></div>
+              <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Email</label><input className="input" type="email" defaultValue={displayEmail} /></div>
               <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Phone</label><input className="input" defaultValue="+91 98765 43210" /></div>
               <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Role</label><input className="input" defaultValue="Super Admin" disabled style={{ background: 'var(--bg)', cursor: 'not-allowed' }} /></div>
               <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Timezone</label><select className="input"><option>IST (UTC+5:30)</option><option>UTC</option></select></div>

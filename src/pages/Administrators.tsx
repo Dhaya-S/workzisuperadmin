@@ -1,10 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, MoreHorizontal, Mail, CheckCircle, XCircle, KeyRound, LogOut, Shield } from 'lucide-react'
 import { PageHeader, SearchInput, FilterSelect, StatusBadge, Pagination, Avatar, ConfirmDialog, Toast, Modal } from '../components/ui'
 import { ADMINS } from '../lib/data'
 import type { Admin } from '../lib/types'
+import { subscribeUsers, toggleUserStatus } from '../lib/superadmin-service'
+import { sendPasswordResetEmail } from 'firebase/auth'
+import { auth } from '../lib/firebase'
+import { useSuperAdminAuth } from '../context/SuperAdminAuthContext'
 
 export default function Administrators() {
+  const { user } = useSuperAdminAuth()
+  const [liveUsers, setLiveUsers] = useState<Admin[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -12,17 +18,37 @@ export default function Administrators() {
   const [showInvite, setShowInvite] = useState(false)
   const [selected, setSelected] = useState<Admin | null>(null)
   const [actionMenu, setActionMenu] = useState<string | null>(null)
-  const [confirm, setConfirm] = useState<{ name: string; action: string } | null>(null)
+  const [confirm, setConfirm] = useState<{ admin: Admin; action: string } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('All')
   const perPage = 8
 
-  const filtered = ADMINS.filter(a =>
-    (search === '' || a.name.toLowerCase().includes(search.toLowerCase()) || a.org.toLowerCase().includes(search.toLowerCase())) &&
+  useEffect(() => {
+    const unsub = subscribeUsers(users => {
+      // In Workzi, tenant administrators are HR Admins
+      const adminsOnly = users.filter(u => u.role.toLowerCase().includes('admin'))
+      setLiveUsers(adminsOnly.length > 0 ? adminsOnly : users)
+    })
+    return () => unsub()
+  }, [])
+
+  const allAdmins = liveUsers
+
+  const filtered = allAdmins.filter(a =>
+    (search === '' || a.name.toLowerCase().includes(search.toLowerCase()) || a.org.toLowerCase().includes(search.toLowerCase()) || a.email.toLowerCase().includes(search.toLowerCase())) &&
     (statusFilter === '' || a.status === statusFilter) &&
     (roleFilter === '' || a.role === roleFilter) &&
     (activeTab === 'All' || a.status === activeTab.toLowerCase())
   )
+
+  const handleResetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email)
+      setToast(`Password reset link sent to ${email}`)
+    } catch (err: any) {
+      setToast(`Password reset error: ${err.message}`)
+    }
+  }
 
   return (
     <div>
@@ -42,12 +68,14 @@ export default function Administrators() {
       <div className="card" style={{ padding: 0, overflow: 'visible' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr className="table-header">{['Administrator', 'Organization', 'Role', 'Status', 'Last Login', '2FA', 'Created', 'Actions'].map(h => <th key={h} style={{ padding: '12px 16px', textAlign: 'left' }}>{h}</th>)}</tr></thead>
-          <tbody>{filtered.slice((page - 1) * perPage, page * perPage).map(a => (
+          <tbody>{filtered.length === 0 ? (
+            <tr><td colSpan={8} style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>No administrators found</td></tr>
+          ) : filtered.slice((page - 1) * perPage, page * perPage).map(a => (
             <tr key={a.id} className="table-row">
               <td style={{ padding: '14px 16px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Avatar name={a.name} size={34} /><div><div style={{ fontSize: 14, fontWeight: 500 }}>{a.name}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.email}</div></div></div></td>
               <td style={{ padding: '14px 16px', fontSize: 13 }}>{a.org}</td><td style={{ padding: '14px 16px', fontSize: 13 }}>{a.role}</td><td style={{ padding: '14px 16px' }}><StatusBadge status={a.status} /></td><td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--text-muted)' }}>{a.lastLogin}</td>
               <td style={{ padding: '14px 16px' }}>{a.twoFa ? <CheckCircle size={16} color="var(--success)" /> : <XCircle size={16} color="var(--error)" />}</td><td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--text-muted)' }}>{a.created}</td>
-              <td style={{ padding: '14px 16px' }}><div style={{ display: 'flex', gap: 6, position: 'relative' }}><button className="btn-secondary" style={{ height: 30, fontSize: 12 }} onClick={() => setSelected(a)}>View</button><button className="icon-btn" style={{ width: 30, height: 30 }} onClick={() => setActionMenu(actionMenu === a.id ? null : a.id)}><MoreHorizontal size={14} /></button>{actionMenu === a.id && <div style={{ position: 'absolute', right: 0, top: 34, width: 178, padding: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 20 }}><div className="sidebar-item" onClick={() => { setSelected(a); setActionMenu(null) }}><Shield size={13} /> View permissions</div><div className="sidebar-item" onClick={() => { setToast(`Password reset sent to ${a.email}`); setActionMenu(null) }}><KeyRound size={13} /> Reset password</div><div className="sidebar-item" onClick={() => { setToast(`${a.name}'s sessions revoked`); setActionMenu(null) }}><LogOut size={13} /> Force logout</div><div className="sidebar-item" style={{ color: a.status === 'suspended' ? 'var(--success)' : 'var(--error)' }} onClick={() => { setConfirm({ name: a.name, action: a.status === 'suspended' ? 'reactivate' : 'suspend' }); setActionMenu(null) }}>{a.status === 'suspended' ? 'Reactivate' : 'Suspend'}</div></div>}</div></td>
+              <td style={{ padding: '14px 16px' }}><div style={{ display: 'flex', gap: 6, position: 'relative' }}><button className="btn-secondary" style={{ height: 30, fontSize: 12 }} onClick={() => setSelected(a)}>View</button><button className="icon-btn" style={{ width: 30, height: 30 }} onClick={() => setActionMenu(actionMenu === a.id ? null : a.id)}><MoreHorizontal size={14} /></button>{actionMenu === a.id && <div style={{ position: 'absolute', right: 0, top: 34, width: 178, padding: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 20 }}><div className="sidebar-item" onClick={() => { setSelected(a); setActionMenu(null) }}><Shield size={13} /> View permissions</div><div className="sidebar-item" onClick={() => { handleResetPassword(a.email); setActionMenu(null) }}><KeyRound size={13} /> Reset password</div><div className="sidebar-item" onClick={() => { setToast(`${a.name}'s sessions revoked`); setActionMenu(null) }}><LogOut size={13} /> Force logout</div><div className="sidebar-item" style={{ color: a.status === 'suspended' ? 'var(--success)' : 'var(--error)' }} onClick={() => { setConfirm({ admin: a, action: a.status === 'suspended' ? 'reactivate' : 'suspend' }); setActionMenu(null) }}>{a.status === 'suspended' ? 'Reactivate' : 'Suspend'}</div></div>}</div></td>
             </tr>
           ))}</tbody>
         </table>
@@ -56,7 +84,12 @@ export default function Administrators() {
 
       {selected && <AdminDetail admin={selected} onClose={() => setSelected(null)} onAction={message => { setSelected(null); setToast(message) }} />}
       {showInvite && <InviteAdmin onClose={() => setShowInvite(false)} onSave={() => { setShowInvite(false); setToast('Administrator invitation sent successfully') }} />}
-      {confirm && <ConfirmDialog title={`${confirm.action === 'suspend' ? 'Suspend' : 'Reactivate'} ${confirm.name}?`} message={confirm.action === 'suspend' ? `${confirm.name} will immediately lose admin access and active sessions will end.` : `${confirm.name}'s account will be restored with its previous permissions.`} confirmLabel={confirm.action === 'suspend' ? 'Suspend administrator' : 'Reactivate'} danger={confirm.action === 'suspend'} onConfirm={() => { setToast(`${confirm.name} ${confirm.action}d successfully`); setConfirm(null) }} onCancel={() => setConfirm(null)} />}
+      {confirm && <ConfirmDialog title={`${confirm.action === 'suspend' ? 'Suspend' : 'Reactivate'} ${confirm.admin.name}?`} message={confirm.action === 'suspend' ? `${confirm.admin.name} will immediately lose admin access and active sessions will end.` : `${confirm.admin.name}'s account will be restored with its previous permissions.`} confirmLabel={confirm.action === 'suspend' ? 'Suspend administrator' : 'Reactivate'} danger={confirm.action === 'suspend'} onConfirm={async () => {
+        const nextStatus = confirm.action === 'suspend' ? 'suspended' : 'active'
+        await toggleUserStatus(confirm.admin.email, confirm.admin.name, confirm.admin.org, nextStatus, user?.email || 'admin@workzi.com')
+        setToast(`${confirm.admin.name} ${confirm.action}d successfully`)
+        setConfirm(null)
+      }} onCancel={() => setConfirm(null)} />}
       {toast && <Toast title={toast} onClose={() => setToast(null)} />}
     </div>
   )

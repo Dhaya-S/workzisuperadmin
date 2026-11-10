@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Shield, Key, Lock, Users, CheckCircle, XCircle } from 'lucide-react'
 import { PageHeader, Tabs, SearchInput, Avatar, StatusBadge, Toast, Modal } from '../components/ui'
+import { subscribeUsers } from '../lib/superadmin-service'
+import type { Admin } from '../lib/types'
 
 const ROLES = [
   { name: 'Super Admin', description: 'Full platform access. Cannot be restricted.', users: 2, color: '#DC2626' },
@@ -32,6 +34,7 @@ const USERS_DATA = [
 ]
 
 export default function Identity() {
+  const [liveUsers, setLiveUsers] = useState<Admin[]>([])
   const [tab, setTab] = useState('Users')
   const [selectedRole, setSelectedRole] = useState('Super Admin')
   const [toast, setToast] = useState<string | null>(null)
@@ -39,6 +42,20 @@ export default function Identity() {
   const [showAddUser, setShowAddUser] = useState(false)
   const [editingUser, setEditingUser] = useState<string | null>(null)
   const [userSearch, setUserSearch] = useState('')
+
+  useEffect(() => {
+    const unsub = subscribeUsers(users => setLiveUsers(users))
+    return () => unsub()
+  }, [])
+
+  const displayUsers = liveUsers.map(u => ({
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    status: u.status,
+    lastLogin: u.lastLogin,
+    sessions: 1
+  }))
 
   return (
     <div>
@@ -68,7 +85,9 @@ export default function Identity() {
                 </tr>
               </thead>
               <tbody>
-                {USERS_DATA.filter(u => userSearch === '' || `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(userSearch.toLowerCase())).map(u => (
+                {displayUsers.filter(u => userSearch === '' || `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(userSearch.toLowerCase())).length === 0 ? (
+                  <tr><td colSpan={6} style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>No users found</td></tr>
+                ) : displayUsers.filter(u => userSearch === '' || `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(userSearch.toLowerCase())).map(u => (
                   <tr key={u.name} className="table-row">
                     <td style={{ padding: '14px 20px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

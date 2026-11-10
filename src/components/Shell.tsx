@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import type { Page } from '../lib/types'
 import { Avatar, Toast } from './ui'
+import { useSuperAdminAuth } from '../context/SuperAdminAuthContext'
 
 interface NavItem {
   id: Page
@@ -49,6 +50,9 @@ interface ShellProps {
 }
 
 export default function Shell({ currentPage, setPage, onLogout, children }: ShellProps) {
+  const { adminProfile, user } = useSuperAdminAuth()
+  const displayName = adminProfile?.name || user?.displayName || user?.email?.split('@')[0] || 'Super Admin'
+  const displayEmail = adminProfile?.email || user?.email || 'admin@workzi.com'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(false)
@@ -94,7 +98,7 @@ export default function Shell({ currentPage, setPage, onLogout, children }: Shel
                 <LayoutDashboard size={14} color="#fff" />
               </div>
               <div style={{ overflow: 'hidden' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>Attendance HRMS</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>Workzi HRMS</div>
                 <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--primary)', marginTop: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Super Admin</div>
               </div>
             </div>
@@ -136,9 +140,9 @@ export default function Shell({ currentPage, setPage, onLogout, children }: Shel
           </div>
           {sidebarOpen && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 4px' }}>
-              <Avatar name="Dhruv Sharma" size={28} />
+              <Avatar name={displayName} size={28} />
               <div style={{ overflow: 'hidden' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Dhruv Sharma</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName}</div>
                 <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Super Admin</div>
               </div>
             </div>
@@ -232,9 +236,9 @@ export default function Shell({ currentPage, setPage, onLogout, children }: Shel
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <Avatar name="Dhruv Sharma" size={28} />
+                <Avatar name={displayName} size={28} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>Dhruv Sharma</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>{displayName}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Super Admin</div>
                 </div>
                 <ChevronDown size={12} color="var(--text-muted)" />
@@ -242,8 +246,8 @@ export default function Shell({ currentPage, setPage, onLogout, children }: Shel
               {showUserMenu && (
                 <div style={{ position: 'absolute', right: 0, top: 44, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 6, minWidth: 168, zIndex: 100, boxShadow: '0 8px 24px rgba(16,24,40,0.08)' }} onClick={e => e.stopPropagation()}>
                   <div style={{ padding: '8px 10px 8px', borderBottom: '1px solid var(--divider)', marginBottom: 4 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>Dhruv Sharma</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>dhruv@attendancehrms.in</div>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>{displayName}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{displayEmail}</div>
                   </div>
                   <div className="sidebar-item" style={{ height: 32, borderRadius: 6, fontSize: 12 }} onClick={() => { setPage('profile'); closeAll() }}><User size={13} /> Profile</div>
                   <div className="sidebar-item" style={{ height: 32, borderRadius: 6, fontSize: 12 }} onClick={() => { setPage('settings'); closeAll() }}><Settings size={13} /> Settings</div>

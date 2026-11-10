@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Page, AuthStep } from './lib/types'
+import { SuperAdminAuthProvider, useSuperAdminAuth } from './context/SuperAdminAuthContext'
 import Auth from './pages/Auth'
 import Shell from './components/Shell'
 import Dashboard from './pages/Dashboard'
@@ -19,27 +20,23 @@ import Support from './pages/Support'
 import AuditLogs from './pages/AuditLogs'
 import Settings from './pages/Settings'
 import Profile from './pages/Profile'
-import { ConfirmDialog, Toast } from './components/ui'
+import { ConfirmDialog } from './components/ui'
+import { ShieldCheck } from 'lucide-react'
 
-export default function App() {
+function AppInner() {
+  const { user, loading, logout } = useSuperAdminAuth()
   const [authStep, setAuthStep] = useState<AuthStep>('login')
-  const [authenticated, setAuthenticated] = useState(false)
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
-  const [logoutToast, setLogoutToast] = useState(false)
-
-  const handleAuth = () => {
-    setAuthenticated(true)
-  }
 
   const handleLogout = () => {
     setShowLogoutConfirm(true)
   }
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
     setShowLogoutConfirm(false)
-    setAuthenticated(false)
+    await logout()
     setAuthStep('login')
     setCurrentPage('dashboard')
     setSelectedOrg(null)
@@ -56,12 +53,23 @@ export default function App() {
     setCurrentPage('org-detail')
   }
 
-  if (!authenticated) {
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', gap: 16 }}>
+        <div style={{ width: 44, height: 44, background: 'var(--primary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ShieldCheck size={24} color="#fff" />
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Loading Workzi Master Platform…</div>
+      </div>
+    )
+  }
+
+  if (!user) {
     return (
       <Auth
         step={authStep}
         setStep={setAuthStep}
-        onAuth={handleAuth}
+        onAuth={() => setCurrentPage('dashboard')}
       />
     )
   }
@@ -140,12 +148,20 @@ export default function App() {
       {showLogoutConfirm && (
         <ConfirmDialog
           title="Sign out of Super Admin?"
-          message="You will be signed out of all active sessions. You will need to sign in again to access the platform control center."
+          message="You will be signed out of your Workzi master administration session. You will need to sign in again to access the platform control center."
           confirmLabel="Sign out"
           onConfirm={confirmLogout}
           onCancel={() => setShowLogoutConfirm(false)}
         />
       )}
     </>
+  )
+}
+
+export default function App() {
+  return (
+    <SuperAdminAuthProvider>
+      <AppInner />
+    </SuperAdminAuthProvider>
   )
 }

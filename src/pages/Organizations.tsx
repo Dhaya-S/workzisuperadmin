@@ -1,21 +1,30 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MoreHorizontal, Plus, Building2, CheckCircle, Download, Mail, ExternalLink, AlertTriangle, ChevronRight, ShieldCheck, Activity, CreditCard, Plug, Server } from 'lucide-react'
 import { StatusBadge, SearchInput, FilterSelect, Pagination, PageHeader, ConfirmDialog, Toast, Tabs, StatCard, ProgressBar, LineChart, Modal } from '../components/ui'
 import { ORGS, PLANS, REVENUE_DATA, GROWTH_DATA } from '../lib/data'
 import type { Org, Page } from '../lib/types'
+import {
+  subscribeOrganizations,
+  createTenantOrganization,
+  toggleOrganizationStatus,
+  updateOrganizationPlan
+} from '../lib/superadmin-service'
+import { useSuperAdminAuth } from '../context/SuperAdminAuthContext'
 
 // ─── constants shared across modals ──────────────────────────────────────────
 const INDUSTRIES = ['Technology', 'IT Services', 'Finance', 'Healthcare', 'Manufacturing', 'Logistics', 'Retail', 'Education', 'Media', 'Consulting', 'Startup', 'R&D']
 const REGIONS = ['Mumbai', 'Bangalore', 'Delhi', 'Hyderabad', 'Pune', 'Chennai', 'Kolkata', 'Ahmedabad', 'Noida', 'Surat', 'Jaipur', 'Bhopal']
-const ADMIN_ROLES = ['HR Admin', 'Finance Admin', 'IT Admin', 'Super Admin', 'Read-only Admin']
+const ADMIN_ROLES = ['HR Admin']
 
 // ─── Add Organization Modal (4-step wizard) ──────────────────────────────────
-function AddOrgModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (name: string) => void }) {
+function AddOrgModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (payload: any) => Promise<void> | void }) {
   const [step, setStep] = useState(1)
+  const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     name: '', industry: 'Technology', region: 'Mumbai', size: '50–200',
     website: '', gst: '',
     adminName: '', adminEmail: '', adminPhone: '', adminRole: 'HR Admin',
+    initialPassword: 'Workzi@2026!',
     plan: 'Professional', billing: 'Monthly',
   })
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -118,11 +127,13 @@ function AddOrgModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               <input className="input" placeholder="+91 98765 43210" value={form.adminPhone} onChange={e => set('adminPhone', e.target.value)} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 5 }}>Admin Role</label>
-              <select className="input" value={form.adminRole} onChange={e => set('adminRole', e.target.value)}>
-                {ADMIN_ROLES.map(r => <option key={r}>{r}</option>)}
-              </select>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 5 }}>Initial Password <span style={{ color: 'var(--error)' }}>*</span></label>
+              <input className="input" placeholder="Workzi@2026!" value={form.initialPassword} onChange={e => set('initialPassword', e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 5 }}>Admin Role</label>
+            <input className="input" value="HR Admin (Head of Organization)" disabled />
           </div>
         </div>
       )}
@@ -203,15 +214,26 @@ function AddOrgModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-        <button className="btn-secondary" onClick={step === 1 ? onClose : () => setStep(s => s - 1)}>
+        <button className="btn-secondary" onClick={step === 1 ? onClose : () => setStep(s => s - 1)} disabled={submitting}>
           {step === 1 ? 'Cancel' : '← Back'}
         </button>
         <button
           className="btn-primary"
-          onClick={step === 4 ? () => onSuccess(form.name || 'New Organization') : () => setStep(s => s + 1)}
-          disabled={step === 1 && !form.name.trim()}
+          onClick={async () => {
+            if (step === 4) {
+              setSubmitting(true)
+              try {
+                await onSuccess(form)
+              } finally {
+                setSubmitting(false)
+              }
+            } else {
+              setStep(s => s + 1)
+            }
+          }}
+          disabled={(step === 1 && !form.name.trim()) || (step === 2 && (!form.adminName.trim() || !form.adminEmail.trim())) || submitting}
         >
-          {step === 4 ? 'Create Organization' : 'Continue →'}
+          {submitting ? 'Creating...' : step === 4 ? 'Create Organization' : 'Continue →'}
         </button>
       </div>
     </Modal>
@@ -542,6 +564,8 @@ function OrgActions({ org, onViewDetails, onOpenModal, onSuspend, onDelete }: Or
 
 // ─── Organization List ────────────────────────────────────────────────────────
 function OrgList({ setPage, setSelectedOrg }: { setPage: (p: Page) => void; setSelectedOrg: (id: string) => void }) {
+  const { user } = useSuperAdminAuth()
+  const [liveOrgs, setLiveOrgs] = useState<Org[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [planFilter, setPlanFilter] = useState('')
@@ -554,7 +578,16 @@ function OrgList({ setPage, setSelectedOrg }: { setPage: (p: Page) => void; setS
   const [toast, setToast] = useState<string | null>(null)
   const perPage = 8
 
-  const filtered = ORGS.filter(o =>
+  useEffect(() => {
+    const unsub = subscribeOrganizations(orgs => {
+      setLiveOrgs(orgs)
+    })
+    return () => unsub()
+  }, [])
+
+  const allOrgs = liveOrgs
+
+  const filtered = allOrgs.filter(o =>
     (search === '' || o.name.toLowerCase().includes(search.toLowerCase()) || o.id.includes(search)) &&
     (statusFilter === '' || o.status === statusFilter) &&
     (planFilter === '' || o.plan === planFilter) &&
@@ -563,19 +596,24 @@ function OrgList({ setPage, setSelectedOrg }: { setPage: (p: Page) => void; setS
   const paginated = filtered.slice((page - 1) * perPage, page * perPage)
   const toggleSelect = (id: string) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
 
+  const totalCount = allOrgs.length
+  const activeCount = allOrgs.filter(o => o.status === 'active').length
+  const trialCount = allOrgs.filter(o => o.status === 'trial').length
+  const suspendedCount = allOrgs.filter(o => o.status === 'suspended').length
+
   return (
     <div>
       <PageHeader
         title="Organizations"
-        description="Manage all customer organizations on the Attendance HRMS platform."
+        description="Manage all customer organizations on the Workzi HRMS platform."
         actions={<button className="btn-primary" onClick={() => setShowAddOrg(true)}><Plus size={15} /> Add Organization</button>}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        <StatCard label="Total" value="1,248" trend="+12.4%" />
-        <StatCard label="Active" value="1,182" accent="var(--success)" />
-        <StatCard label="Trial" value="48" accent="var(--info)" />
-        <StatCard label="Suspended" value="18" accent="var(--error)" />
+        <StatCard label="Total" value={totalCount.toLocaleString('en-IN')} trend="+12.4%" />
+        <StatCard label="Active" value={activeCount.toLocaleString('en-IN')} accent="var(--success)" />
+        <StatCard label="Trial" value={trialCount} accent="var(--info)" />
+        <StatCard label="Suspended" value={suspendedCount} accent="var(--error)" />
       </div>
 
       <div className="card" style={{ padding: '14px 16px', marginBottom: 20 }}>
@@ -669,7 +707,15 @@ function OrgList({ setPage, setSelectedOrg }: { setPage: (p: Page) => void; setS
       {showAddOrg && (
         <AddOrgModal
           onClose={() => setShowAddOrg(false)}
-          onSuccess={name => { setShowAddOrg(false); setToast(`Organization "${name}" created successfully`) }}
+          onSuccess={async (payload) => {
+            const res = await createTenantOrganization(payload, user?.email || 'admin@workzi.com')
+            if (res.success) {
+              setToast(`Organization "${payload.name}" created successfully with HR Admin ${payload.adminEmail}!`)
+            } else {
+              setToast(`Error: ${res.error}`)
+            }
+            setShowAddOrg(false)
+          }}
         />
       )}
       {modal?.type === 'edit' && (
@@ -683,7 +729,11 @@ function OrgList({ setPage, setSelectedOrg }: { setPage: (p: Page) => void; setS
         <ChangePlanModal
           org={modal.org}
           onClose={() => setModal(null)}
-          onSuccess={plan => { setModal(null); setToast(`${modal.org.name} plan changed to ${plan}`) }}
+          onSuccess={async (plan) => {
+            await updateOrganizationPlan(modal.org.id, modal.org.name, plan, user?.email || 'admin@workzi.com')
+            setToast(`${modal.org.name} plan changed to ${plan}`)
+            setModal(null)
+          }}
         />
       )}
       {modal?.type === 'access-support' && (
@@ -703,13 +753,24 @@ function OrgList({ setPage, setSelectedOrg }: { setPage: (p: Page) => void; setS
 
       {confirm && (
         <ConfirmDialog
-          title={confirm.action === 'delete' ? `Delete ${confirm.org.name}?` : `Suspend ${confirm.org.name}?`}
+          title={confirm.action === 'delete' ? `Delete ${confirm.org.name}?` : `${confirm.org.status === 'suspended' ? 'Reactivate' : 'Suspend'} ${confirm.org.name}?`}
           message={confirm.action === 'delete'
             ? `This will permanently delete ${confirm.org.name} and all associated data — ${confirm.org.users.toLocaleString()} users, attendance records, payroll data, and documents. This action cannot be undone.`
+            : confirm.org.status === 'suspended'
+            ? `Reactivating ${confirm.org.name} will restore login access for all users and reactivate the workspace.`
             : `Suspending ${confirm.org.name} will immediately prevent all ${confirm.org.users.toLocaleString()} users from logging in. You can reactivate at any time.`}
-          confirmLabel={confirm.action === 'delete' ? 'Delete organization' : 'Suspend organization'}
-          danger
-          onConfirm={() => { setToast(`${confirm.org.name} ${confirm.action === 'delete' ? 'deleted' : 'suspended'}`); setConfirm(null) }}
+          confirmLabel={confirm.action === 'delete' ? 'Delete organization' : confirm.org.status === 'suspended' ? 'Reactivate organization' : 'Suspend organization'}
+          danger={confirm.action === 'delete' || confirm.org.status !== 'suspended'}
+          onConfirm={async () => {
+            if (confirm.action === 'suspend') {
+              const nextStatus = confirm.org.status === 'suspended' ? 'active' : 'suspended'
+              await toggleOrganizationStatus(confirm.org.id, confirm.org.name, nextStatus, user?.email || 'admin@workzi.com')
+              setToast(`${confirm.org.name} ${nextStatus === 'suspended' ? 'suspended' : 'reactivated'} successfully`)
+            } else {
+              setToast(`${confirm.org.name} deleted`)
+            }
+            setConfirm(null)
+          }}
           onCancel={() => setConfirm(null)}
         />
       )}
@@ -720,7 +781,26 @@ function OrgList({ setPage, setSelectedOrg }: { setPage: (p: Page) => void; setS
 
 // ─── Organization Detail ──────────────────────────────────────────────────────
 function OrgDetail({ orgId, setPage }: { orgId: string; setPage: (p: Page) => void }) {
-  const org = ORGS.find(o => o.id === orgId) || ORGS[0]
+  const [liveOrgs, setLiveOrgs] = useState<Org[]>([])
+  useEffect(() => {
+    const unsub = subscribeOrganizations(orgs => setLiveOrgs(orgs))
+    return () => unsub()
+  }, [])
+  const org = liveOrgs.find(o => o.id === orgId) || liveOrgs[0] || {
+    id: orgId,
+    name: 'Organization',
+    plan: 'Professional',
+    status: 'active' as const,
+    users: 0,
+    admins: 1,
+    usage: 0,
+    subscription: '₹0/mo',
+    created: '',
+    lastActivity: '',
+    industry: 'Technology',
+    region: 'India',
+    mrr: 0
+  }
   const [activeTab, setActiveTab] = useState('Overview')
   const [toast, setToast] = useState<string | null>(null)
   const [modal, setModal] = useState<OrgModalType | null>(null)

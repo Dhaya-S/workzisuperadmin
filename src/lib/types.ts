@@ -18,7 +18,7 @@ export type Page =
   | 'settings'
   | 'profile'
 
-export type AuthStep = 'login' | 'password' | '2fa' | 'forgot' | 'reset' | 'setup' | 'setup-2fa' | 'terms'
+export type AuthStep = 'login' | 'signup' | 'forgot' | 'password' | 'reset' | 'terms'
 
 export interface Org {
   id: string
@@ -103,3 +103,14 @@ export interface AuditLog {
   ip: string
   result: 'success' | 'failed'
 }
+
+export interface SuperAdminUser {
+  uid: string
+  email: string
+  name: string
+  role: 'super_admin' | 'platform_admin'
+  avatarUrl?: string
+  lastLogin?: string
+  twoFaEnabled?: boolean
+}
+

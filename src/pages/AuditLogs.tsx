@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Download, Filter, ScrollText, Eye } from 'lucide-react'
 import { PageHeader, StatusBadge, SearchInput, FilterSelect, Pagination, Toast, Modal } from '../components/ui'
 import { AUDIT_LOGS } from '../lib/data'
+import { subscribeAuditLogs } from '../lib/superadmin-service'
+import type { AuditLog } from '../lib/types'
 
 export default function AuditLogs() {
+  const [liveLogs, setLiveLogs] = useState<AuditLog[]>([])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [selected, setSelected] = useState<typeof AUDIT_LOGS[0] | null>(null)
+  const [selected, setSelected] = useState<AuditLog | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [actor, setActor] = useState('')
   const [action, setAction] = useState('')
@@ -14,9 +17,12 @@ export default function AuditLogs() {
   const [result, setResult] = useState('')
   const perPage = 10
 
-  const filtered = AUDIT_LOGS.filter(l =>
-    search === '' || l.actor.toLowerCase().includes(search.toLowerCase()) || l.action.toLowerCase().includes(search.toLowerCase()) || l.resource.toLowerCase().includes(search.toLowerCase())
-  )
+  useEffect(() => {
+    const unsub = subscribeAuditLogs(logs => {
+      setLiveLogs(logs)
+    })
+    return () => unsub()
+  }, [])
 
   const ACTION_COLORS: Record<string, string> = {
     SUSPEND_ORG: 'var(--error)', DELETE_ORG: 'var(--error)', UPDATE_PLAN: 'var(--info)', VIEW_ORG_DATA: 'var(--text-muted)',
@@ -26,11 +32,14 @@ export default function AuditLogs() {
   const MORE_LOGS = [
     { id: 'AUD-9891', timestamp: '1 Sep 2026, 12:00:00 IST', actor: 'Kiran Joshi', actorType: 'Security Admin', action: 'BLOCK_USER', resource: 'unknown@attacker.com', org: 'Nova Systems', ip: '10.0.0.8', result: 'success' as const },
     { id: 'AUD-9889', timestamp: '31 Aug 2026, 20:30:15 IST', actor: 'System', actorType: 'Automation', action: 'SUBSCRIPTION_RENEWAL', resource: 'Vertex Labs', org: 'Vertex Labs', ip: '—', result: 'success' as const },
-    { id: 'AUD-9887', timestamp: '31 Aug 2026, 16:00:00 IST', actor: 'Dhruv Sharma', actorType: 'Super Admin', action: 'CREATE_PLAN', resource: 'Enterprise Plus', org: '—', ip: '10.0.0.1', result: 'success' as const },
+    { id: 'AUD-9887', timestamp: '31 Aug 2026, 16:00:00 IST', actor: 'Workzi Master', actorType: 'Super Admin', action: 'CREATE_PLAN', resource: 'Enterprise Plus', org: '—', ip: '10.0.0.1', result: 'success' as const },
     { id: 'AUD-9885', timestamp: '30 Aug 2026, 14:22:33 IST', actor: 'Ananya Singh', actorType: 'Analyst', action: 'EXPORT_ANALYTICS', resource: 'Platform Analytics', org: '—', ip: '10.0.0.9', result: 'success' as const },
   ]
 
-  const allLogs = [...AUDIT_LOGS, ...MORE_LOGS]
+  const allLogs = liveLogs
+  const actorOptions = Array.from(new Set(allLogs.map(l => l.actor).filter(Boolean)))
+  const actionOptions = Array.from(new Set(allLogs.map(l => l.action).filter(Boolean)))
+
   const filteredAll = allLogs.filter(l =>
     (search === '' || l.actor.toLowerCase().includes(search.toLowerCase()) || l.action.toLowerCase().includes(search.toLowerCase()) || l.resource.toLowerCase().includes(search.toLowerCase())) &&
     (actor === '' || l.actor === actor) &&
@@ -50,8 +59,8 @@ export default function AuditLogs() {
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <SearchInput placeholder="Search by actor, action, or resource..." value={search} onChange={setSearch} />
-        <FilterSelect label="All actors" value={actor} options={['Dhruv Sharma', 'Pooja Mehta', 'Sanjay Rao', 'System', 'Kiran Joshi']} onChange={setActor} />
-        <FilterSelect label="All actions" value={action} options={['SUSPEND_ORG', 'UPDATE_PLAN', 'VIEW_ORG_DATA', 'SEND_INVOICE', 'REFUND_PAYMENT', 'BLOCK_USER']} onChange={setAction} />
+        <FilterSelect label="All actors" value={actor} options={actorOptions} onChange={setActor} />
+        <FilterSelect label="All actions" value={action} options={actionOptions.length > 0 ? actionOptions : ['SUSPEND_ORG', 'UPDATE_PLAN', 'VIEW_ORG_DATA', 'SEND_INVOICE', 'REFUND_PAYMENT', 'BLOCK_USER']} onChange={setAction} />
         <FilterSelect label="Date range" value={dateRange} options={['Today', 'Last 7 days', 'Last 30 days', 'Last 90 days', 'Custom']} onChange={value => { setDateRange(value); if (value) setToast(`${value} filter applied`) }} />
         <FilterSelect label="Result" value={result} options={['success', 'failed']} onChange={setResult} />
         <div style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text-muted)' }}>{filteredAll.length} logs</div>
@@ -67,7 +76,9 @@ export default function AuditLogs() {
             </tr>
           </thead>
           <tbody>
-            {filteredAll.slice((page - 1) * perPage, page * perPage).map(log => (
+            {filteredAll.length === 0 ? (
+              <tr><td colSpan={9} style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>No audit logs recorded yet</td></tr>
+            ) : filteredAll.slice((page - 1) * perPage, page * perPage).map(log => (
               <tr key={log.id} className="table-row">
                 <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{log.timestamp}</td>
                 <td style={{ padding: '12px 16px' }}>

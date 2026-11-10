@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus, AlertTriangle, CheckCircle, Clock, XCircle, Activity } from 'lucide-react'
 import { PageHeader, Tabs, StatusBadge, StatCard, Toast, Modal, ProgressBar } from '../components/ui'
 import { INCIDENTS, SERVICES } from '../lib/data'
+import { useSuperAdminAuth } from '../context/SuperAdminAuthContext'
 
 const STATUS_COLORS: Record<string, string> = {
   operational: 'var(--success)',
@@ -11,6 +12,8 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function Monitoring() {
+  const { adminProfile, user } = useSuperAdminAuth()
+  const displayName = adminProfile?.name || user?.displayName || user?.email?.split('@')[0] || 'Super Admin'
   const [tab, setTab] = useState('System Health')
   const [toast, setToast] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -90,7 +93,7 @@ export default function Monitoring() {
             <div className="card">
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Assign Owner</div>
               <select className="input" style={{ marginBottom: 10 }}>
-                <option>Dhruv Sharma</option><option>Pooja Mehta</option><option>Sanjay Rao</option>
+                <option>{displayName}</option><option>Support Admin</option><option>Operations Lead</option>
               </select>
               <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }} onClick={() => setToast('Owner assigned')}>Assign</button>
             </div>

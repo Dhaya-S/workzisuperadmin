@@ -19,7 +19,7 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader title="Global Settings" description="Platform-wide configuration for Attendance HRMS." />
+      <PageHeader title="Global Settings" description="Platform-wide configuration for Workzi HRMS." />
 
       <div style={{ marginBottom: 24 }}>
         <Tabs tabs={TABS} active={tab} onChange={setTab} />
@@ -31,10 +31,10 @@ export default function Settings() {
             <div className="card">
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Platform Identity</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Platform name</label><input className="input" defaultValue="Attendance HRMS" /></div>
-                <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Platform URL</label><input className="input" defaultValue="https://app.attendancehrms.in" /></div>
-                <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Support email</label><input className="input" defaultValue="support@attendancehrms.in" /></div>
-                <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Legal entity</label><input className="input" defaultValue="Attendance HRMS Technologies Pvt. Ltd." /></div>
+                <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Platform name</label><input className="input" defaultValue="Workzi HRMS" /></div>
+                <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Platform URL</label><input className="input" defaultValue="https://app.workzi.io" /></div>
+                <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Support email</label><input className="input" defaultValue="support@workzi.io" /></div>
+                <div><label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Legal entity</label><input className="input" defaultValue="Workzi Technologies Pvt. Ltd." /></div>
               </div>
               <button className="btn-primary" style={{ marginTop: 20 }} onClick={() => setToast('Platform settings saved')}>Save changes</button>
             </div>
